@@ -283,7 +283,7 @@ class EvaluationDetailView(APIView):
         if user.role == 'recruiter' and evaluation.recruiter_id != str(user.id):
             return Response({'error': 'Forbidden.'}, status=403)
 
-        return Response(evaluation.to_dict())
+        return Response(evaluation.to_dict(viewer_role=user.role))
 
     def patch(self, request, eval_id):
         """HR submits notes/review"""

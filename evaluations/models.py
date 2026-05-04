@@ -103,7 +103,7 @@ class Evaluation(me.Document):
         'ordering': ['-created_at'],
     }
 
-    def to_dict(self):
+    def to_dict(self, viewer_role: str = None):
         # Resolve candidate name for frontend display
         candidate_name = ''
         try:
@@ -135,7 +135,25 @@ class Evaluation(me.Document):
         except Exception:
             pass
 
-        return {
+        # Map recommendation to frontend format
+        recommendation_map = {
+            'strong_yes': 'HIRE',
+            'yes': 'HIRE',
+            'maybe': 'MAYBE',
+            'no': 'REJECT',
+            'strong_no': 'REJECT',
+        }
+        frontend_recommendation = recommendation_map.get(self.recommendation, 'MAYBE')
+
+        # Map confidence_score to HIGH/MEDIUM/LOW
+        if (self.confidence_score or 0) >= 80:
+            confidence_level = 'HIGH'
+        elif (self.confidence_score or 0) >= 50:
+            confidence_level = 'MEDIUM'
+        else:
+            confidence_level = 'LOW'
+
+        data = {
             'id': str(self.id),
             'interview_id': self.interview_id,
             'candidate_id': self.candidate_id,
@@ -155,7 +173,8 @@ class Evaluation(me.Document):
                 for cr in self.criterion_results
             ],
             'overall_score': self.overall_score,
-            'recommendation': self.recommendation,
+            'recommendation': frontend_recommendation,
+            'confidence': confidence_level,
             'summary': self.summary,
             'strengths': self.strengths,
             'weaknesses': self.weaknesses,
@@ -170,6 +189,7 @@ class Evaluation(me.Document):
             'behavioral_summary': self.behavioral_summary,
             'proctoring_score': self.proctoring_score,
             'integrity_notes': self.integrity_notes,
+            'violations_count': self.tab_switch_count,
             'tab_switch_count': self.tab_switch_count,
             'culture_fit_score': self.culture_fit_score,
             'question_analysis': self.question_analysis or {},
@@ -179,3 +199,12 @@ class Evaluation(me.Document):
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
+
+        # Hide violation/proctoring data from candidate view
+        if viewer_role == 'candidate':
+            data.pop('violations_count', None)
+            data.pop('tab_switch_count', None)
+            data.pop('proctoring_score', None)
+            data.pop('integrity_notes', None)
+
+        return data
