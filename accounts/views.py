@@ -1868,43 +1868,49 @@ class TalentPoolSearchView(APIView):
             bio = (c.bio or '').lower()
             headline = (c.headline or '').lower()
             location = (c.location or '').lower()
+            name = (c.name or '').lower()
             work = ' '.join([
                 f"{w.get('title','')} {w.get('company','')} {w.get('description','')}".lower()
                 for w in (c.work_history or [])
             ])
-            full_text = f"{' '.join(skills)} {bio} {headline} {location} {work}"
-
-            matched = sum(1 for w in query_words if w in full_text)
-            skill_matches = sum(1 for w in query_words if any(w in s for s in skills))
+            full_text = f"{' '.join(skills)} {bio} {headline} {location} {work} {name}"
 
             if not query_words:
-                score = 50
+                score = 60
+                matched = 0
             else:
+                matched = sum(1 for w in query_words if w in full_text)
+                skill_matches = sum(1 for w in query_words if any(w in s for s in skills))
                 score = min(100, int(
-                    (matched / len(query_words)) * 60 +
-                    (skill_matches / len(query_words)) * 40
+                    (matched / len(query_words)) * 70 +
+                    (skill_matches / len(query_words)) * 30
                 ))
 
+            # Boost scores
             if c.work_history:
-                score = min(100, score + 10)
-            if len(c.detailed_skills or []) >= 5:
+                score = min(100, score + 8)
+            if len(c.detailed_skills or []) >= 3:
                 score = min(100, score + 5)
+            if c.is_profile_complete:
+                score = min(100, score + 7)
 
-            if score > 0:
-                scored.append({
-                    'name': c.name,
-                    'title': c.headline or 'Candidate',
-                    'skills': list(c.detailed_skills or [])[:6],
-                    'location': c.location or '',
-                    'score': score,
-                    'reason': f"Matched {matched} of {len(query_words)} keywords.",
-                    'candidate_id': str(c.id),
-                })
+            # Include all candidates with any match, use lower thresholds
+            scored.append({
+                'name': c.name,
+                'title': c.headline or 'Candidate',
+                'skills': list(c.detailed_skills or [])[:6],
+                'location': c.location or '',
+                'score': score,
+                'reason': f"Matched {matched} of {len(query_words)} keywords. Skills: {', '.join((c.detailed_skills or [])[:3]) or 'Not specified'}",
+                'candidate_id': str(c.id),
+            })
 
         scored.sort(key=lambda x: x['score'], reverse=True)
-        top = scored[:top_n * 2]
-        shortlist = [c for c in top if c['score'] >= 80][:top_n]
-        pipeline = [c for c in top if 70 <= c['score'] < 80][:top_n]
+        top = scored[:top_n * 3]
+
+        # Lower thresholds: 60+ shortlisted, 40-59 pipeline
+        shortlist = [c for c in top if c['score'] >= 60][:top_n]
+        pipeline = [c for c in top if 40 <= c['score'] < 60][:top_n]
 
         all_skills = []
         for c in candidates:
