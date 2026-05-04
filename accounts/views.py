@@ -1842,3 +1842,34 @@ class PortfolioSuggesterView(APIView):
         except Exception as e:
             logger.error(f'[PortfolioSuggester] Failed: {e}')
             return Response({'error': f'Portfolio suggestion failed: {str(e)}'}, status=500)
+
+
+class N8NCandidatesView(APIView):
+    """
+    GET /api/auth/n8n/candidates/
+    Internal endpoint for n8n — returns all active candidates.
+    Protected by a simple secret key header.
+    """
+    permission_classes = []  # No JWT auth — uses secret key instead
+
+    def get(self, request):
+        secret = request.headers.get('X-N8N-Secret', '')
+        expected = 'innovaite-n8n-secret-2026'
+        if secret != expected:
+            return Response({'error': 'Forbidden'}, status=403)
+
+        candidates = User.objects(role='candidate', is_active=True)
+        data = []
+        for c in candidates:
+            data.append({
+                'id': str(c.id),
+                'name': c.name,
+                'email': c.email,
+                'headline': c.headline or '',
+                'bio': c.bio or '',
+                'location': c.location or '',
+                'detailed_skills': list(c.detailed_skills or []),
+                'work_history': list(c.work_history or []),
+                'is_profile_complete': c.is_profile_complete,
+            })
+        return Response(data)
