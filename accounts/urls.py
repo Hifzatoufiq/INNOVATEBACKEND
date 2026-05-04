@@ -13,7 +13,6 @@ from accounts.views import (
     HRDocumentGeneratorView, EmployeeHandbookBuilderView,
     LDRoadmapView, PolicyComplianceView,
     CoverLetterView, JobMatchAnalyzerView, SelfIntroCoachView, PortfolioSuggesterView,
-    TalentPoolSearchView, N8NCandidatesView,
 )
 from accounts.google_views import GoogleAuthURLView, GoogleCallbackView
 from accounts.mfa_views import (
@@ -96,6 +95,4 @@ urlpatterns = [
     path('job-match/', JobMatchAnalyzerView.as_view(), name='job-match'),
     path('self-intro/', SelfIntroCoachView.as_view(), name='self-intro'),
     path('portfolio-advisor/', PortfolioSuggesterView.as_view(), name='portfolio-advisor'),
-    path('n8n/candidates/', N8NCandidatesView.as_view(), name='n8n-candidates'),
-    path('talent-pool/', TalentPoolSearchView.as_view(), name='talent-pool'),
 ]

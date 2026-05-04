@@ -1844,32 +1844,100 @@ class PortfolioSuggesterView(APIView):
             return Response({'error': f'Portfolio suggestion failed: {str(e)}'}, status=500)
 
 
+class TalentPoolSearchView(APIView):
+    """POST /api/auth/talent-pool/ — Recruiter searches candidates by query."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role not in ['recruiter', 'admin']:
+            return Response({'error': 'Only recruiters can search talent pool.'}, status=403)
+
+        query = request.data.get('query', '').strip()
+        top_n = int(request.data.get('top_n', 5))
+
+        if not query:
+            return Response({'error': 'query is required.'}, status=400)
+
+        candidates = User.objects(role='candidate', is_active=True)
+        query_lower = query.lower()
+        query_words = [w.strip() for w in query_lower.replace(',', ' ').split() if len(w.strip()) > 2]
+
+        scored = []
+        for c in candidates:
+            skills = [s.lower() for s in (c.detailed_skills or [])]
+            bio = (c.bio or '').lower()
+            headline = (c.headline or '').lower()
+            location = (c.location or '').lower()
+            work = ' '.join([
+                f"{w.get('title','')} {w.get('company','')} {w.get('description','')}".lower()
+                for w in (c.work_history or [])
+            ])
+            full_text = f"{' '.join(skills)} {bio} {headline} {location} {work}"
+
+            matched = sum(1 for w in query_words if w in full_text)
+            skill_matches = sum(1 for w in query_words if any(w in s for s in skills))
+
+            if not query_words:
+                score = 50
+            else:
+                score = min(100, int(
+                    (matched / len(query_words)) * 60 +
+                    (skill_matches / len(query_words)) * 40
+                ))
+
+            if c.work_history:
+                score = min(100, score + 10)
+            if len(c.detailed_skills or []) >= 5:
+                score = min(100, score + 5)
+
+            if score > 0:
+                scored.append({
+                    'name': c.name,
+                    'title': c.headline or 'Candidate',
+                    'skills': list(c.detailed_skills or [])[:6],
+                    'location': c.location or '',
+                    'score': score,
+                    'reason': f"Matched {matched} of {len(query_words)} keywords.",
+                    'candidate_id': str(c.id),
+                })
+
+        scored.sort(key=lambda x: x['score'], reverse=True)
+        top = scored[:top_n * 2]
+        shortlist = [c for c in top if c['score'] >= 80][:top_n]
+        pipeline = [c for c in top if 70 <= c['score'] < 80][:top_n]
+
+        all_skills = []
+        for c in candidates:
+            all_skills.extend(c.detailed_skills or [])
+        missing = [w for w in query_words if not any(w in s.lower() for s in all_skills)]
+        skill_gap = f"Skills scarce in pool: {', '.join(missing[:5])}" if missing else "Pool covers required skills."
+
+        return Response({
+            'shortlist': shortlist,
+            'pipeline': pipeline,
+            'skill_gap_insight': skill_gap,
+            'total_scanned': candidates.count(),
+        })
+
+
 class N8NCandidatesView(APIView):
-    """
-    GET /api/auth/n8n/candidates/
-    Internal endpoint for n8n — returns all active candidates.
-    Protected by a simple secret key header.
-    """
-    permission_classes = []  # No JWT auth — uses secret key instead
+    """GET /api/auth/n8n/candidates/ — Internal endpoint for n8n."""
+    permission_classes = []
 
     def get(self, request):
         secret = request.headers.get('X-N8N-Secret', '')
-        expected = 'innovaite-n8n-secret-2026'
-        if secret != expected:
+        if secret != 'innovaite-n8n-secret-2026':
             return Response({'error': 'Forbidden'}, status=403)
 
         candidates = User.objects(role='candidate', is_active=True)
-        data = []
-        for c in candidates:
-            data.append({
-                'id': str(c.id),
-                'name': c.name,
-                'email': c.email,
-                'headline': c.headline or '',
-                'bio': c.bio or '',
-                'location': c.location or '',
-                'detailed_skills': list(c.detailed_skills or []),
-                'work_history': list(c.work_history or []),
-                'is_profile_complete': c.is_profile_complete,
-            })
+        data = [{
+            'id': str(c.id),
+            'name': c.name,
+            'headline': c.headline or '',
+            'bio': c.bio or '',
+            'location': c.location or '',
+            'detailed_skills': list(c.detailed_skills or []),
+            'work_history': list(c.work_history or []),
+            'is_profile_complete': c.is_profile_complete,
+        } for c in candidates]
         return Response(data)
