@@ -36,11 +36,25 @@ def extract_text_from_file(file_path: str, ext: str) -> str:
         elif ext == '.pdf':
             try:
                 from pdfminer.high_level import extract_text as pdf_extract
-                return pdf_extract(file_path)
-            except ImportError:
-                # pdfminer not installed — read as bytes and decode
-                with open(file_path, 'rb') as f:
-                    return f.read().decode('utf-8', errors='ignore')
+                text = pdf_extract(file_path)
+                if text.strip(): return text
+            except Exception:
+                pass
+            
+            # Secondary fallback: pypdf (more robust for some encodings)
+            try:
+                from pypdf import PdfReader
+                reader = PdfReader(file_path)
+                text = ""
+                for page in reader.pages:
+                    text += page.extract_text() + "\n"
+                if text.strip(): return text
+            except Exception:
+                pass
+
+            # Final desperate fallback
+            with open(file_path, 'rb') as f:
+                return f.read().decode('utf-8', errors='ignore')
 
         elif ext in ['.docx', '.doc']:
             # Basic DOCX text extraction without python-docx

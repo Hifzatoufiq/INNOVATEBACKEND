@@ -482,28 +482,39 @@ class PredictApplicationStatusView(APIView):
         except (Job.DoesNotExist, Exception):
             return Response({'error': 'Job not found.'}, status=404)
 
-        # Get candidate's active resume
-        resume_data = {}
+        # Merge Strategy: Always use Profile Data as base, then override with Resume Data if available
+        profile_skills = getattr(user, 'detailed_skills', []) or []
+        profile_exp = getattr(user, 'work_history', []) or []
+        profile_headline = getattr(user, 'headline', '') or ''
+        
+        # Start with Profile Data
+        merged_data = {
+            'skills': profile_skills,
+            'experience': profile_exp,
+            'headline': profile_headline,
+            'total_experience_years': 0,
+            'education': getattr(user, 'education_history', []) or []
+        }
+
+        # Enrich with Resume Data if it's healthy
         try:
             resumes = Resume.objects.filter(candidate_id=str(user.id))
             active_resume = next((r for r in resumes if getattr(r, 'is_active', False)), None) or (resumes[0] if resumes else None)
-            if active_resume and getattr(active_resume, 'parsed_data', None):
-                resume_data = active_resume.parsed_data
-        except Exception:
-            pass
-
-        # Fallback to user profile skills
-        if not resume_data:
-            resume_data = {
-                'skills': getattr(user, 'detailed_skills', []) or [],
-                'experience': getattr(user, 'work_history', []) or [],
-                'headline': getattr(user, 'headline', '') or '',
-                'total_experience_years': 0,
-            }
+            
+            if active_resume and getattr(active_resume, 'parse_status', '') == 'completed' and active_resume.parsed_data:
+                res_data = active_resume.parsed_data
+                # Merge logic: favor resume data for specifics if it exists
+                if res_data.get('skills'): merged_data['skills'] = list(set(merged_data['skills'] + res_data['skills']))
+                if res_data.get('experience'): merged_data['experience'] = res_data['experience']
+                if res_data.get('name'): merged_data['candidate_name'] = res_data['name']
+                merged_data['total_experience_years'] = res_data.get('total_experience_years', 0)
+                if res_data.get('education'): merged_data['education'] = res_data['education']
+        except Exception as e:
+            logger.warning(f'[Predict] Resume enrichment failed: {e}')
 
         try:
             result = predict_application_status(
-                resume_data=resume_data,
+                resume_data=merged_data,
                 job_title=getattr(job, 'title', 'Unknown Role'),
                 job_description=getattr(job, 'description', '') or '',
                 requirements=getattr(job, 'requirements', []) or [],
@@ -512,7 +523,7 @@ class PredictApplicationStatusView(APIView):
             result['job_title'] = getattr(job, 'title', '')
             result['job_id'] = str(job.id)
             # Flag whether candidate has a resume for better UX messaging
-            result['has_resume'] = bool(resume_data.get('skills') or resume_data.get('experience'))
+            result['has_resume'] = bool(merged_data.get('skills') or merged_data.get('experience'))
             return Response(result)
         except Exception as e:
             logger.error(f'[PredictApplicationStatus] Failed: {e}')
