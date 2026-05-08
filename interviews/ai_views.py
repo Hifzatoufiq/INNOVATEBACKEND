@@ -78,7 +78,7 @@ def handle_ai_error(e: Exception):
         }, status=500)
 
     return Response({
-        'error': 'AI service temporarily unavailable. Please try again.',
+        'error': f'AI service temporarily unavailable: {error_str}',
         'error_type': 'AI_ERROR'
     }, status=503)
 
