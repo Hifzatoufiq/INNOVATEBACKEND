@@ -696,19 +696,65 @@ def predict_application_status(
         return json.loads(_strip_json(_call(prompt, user_id=user_id)))
     except Exception as e:
         logger.warning(f'[GPT] predict_application_status failed: {e}')
-        skills = resume_data.get('skills', [])
-        reqs_lower = [r.lower() for r in reqs]
-        matched = [s for s in skills if any(r in s.lower() for r in reqs_lower)] if reqs_lower else skills[:3]
-        prob = min(85, max(20, len(matched) * 15 + 20))
+        # ── Smart fallback: calculate score from actual skills vs requirements ──
+        skills = [s.lower().strip() for s in (resume_data.get('skills', []) or [])]
+        exp_years = resume_data.get('total_experience_years', 0) or 0
+        headline = (resume_data.get('headline', '') or '').lower()
+        reqs_lower = [r.lower().strip() for r in (reqs or [])]
+        job_title_lower = job_title.lower()
+        job_desc_lower = (job_description or '').lower()
+
+        # Direct skill matches against requirements
+        matched = []
+        if reqs_lower and skills:
+            for skill in skills:
+                for req in reqs_lower:
+                    if skill in req or req in skill:
+                        matched.append(skill)
+                        break
+
+        # Fallback: match skills against job description words
+        if not matched and skills:
+            matched = [s for s in skills if s in job_desc_lower or s in job_title_lower]
+
+        # Gaps = requirements not covered by any skill
+        gaps = [r for r in reqs_lower if not any(r in s or s in r for s in skills)]
+
+        # Score calculation
+        if reqs_lower:
+            match_ratio = len(matched) / len(reqs_lower)
+            base_score = int(match_ratio * 65)  # up to 65 from skill match
+        else:
+            base_score = min(40, len(matched) * 8)
+
+        # Experience bonus (up to 15 pts)
+        exp_bonus = min(15, int(exp_years) * 3)
+
+        # Headline/title alignment bonus (up to 10 pts)
+        title_words = [w for w in job_title_lower.split() if len(w) > 3]
+        title_bonus = 10 if any(w in headline for w in title_words) else 0
+
+        # Baseline for having a profile
+        baseline = 15
+
+        prob = min(92, max(18, base_score + exp_bonus + title_bonus + baseline))
+
         label = 'Strong Match' if prob >= 75 else 'Good Fit' if prob >= 55 else 'Possible Fit' if prob >= 35 else 'Long Shot'
         return {
             'success_probability': prob,
             'status_label': label,
             'shortlist_likelihood': 'High' if prob >= 70 else 'Medium' if prob >= 45 else 'Low',
-            'key_strengths': matched[:2] or ['Relevant background'],
-            'critical_gaps': [r for r in reqs[:3] if r.lower() not in [s.lower() for s in skills]],
-            'recommendation': f'Your profile shows a {label.lower()} for this role. Tailor your resume to highlight matching skills.',
-            'improvement_tips': ['Tailor resume to job description', 'Highlight relevant projects', 'Add missing skills to profile'],
+            'key_strengths': [s.title() for s in matched[:3]] or ['Relevant background', 'Profile submitted'],
+            'critical_gaps': [g.title() for g in gaps[:3]],
+            'recommendation': (
+                f'Your profile shows a {label.lower()} for this role. '
+                f'{"You match {}/{} key requirements.".format(len(matched), len(reqs_lower)) if reqs_lower else "Upload a detailed resume to improve your prediction accuracy."}'
+            ),
+            'improvement_tips': [
+                'Upload or update your resume with latest skills',
+                'Add missing skills to your profile',
+                'Tailor your headline to match the job title',
+            ],
         }
 
 

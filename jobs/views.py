@@ -511,6 +511,8 @@ class PredictApplicationStatusView(APIView):
             )
             result['job_title'] = getattr(job, 'title', '')
             result['job_id'] = str(job.id)
+            # Flag whether candidate has a resume for better UX messaging
+            result['has_resume'] = bool(resume_data.get('skills') or resume_data.get('experience'))
             return Response(result)
         except Exception as e:
             logger.error(f'[PredictApplicationStatus] Failed: {e}')
