@@ -849,13 +849,18 @@ def generate_question_bank_suggestions(
         num_questions = count
     categories_str = ', '.join(categories) if categories else category
 
-    # CRITICAL FIX: Reduce max_tokens for faster response on Vercel serverless
-    prompt = f"""Generate {num_questions} interview questions for: {job_title}
-{f'Description: {job_description[:300]}' if job_description else ''}
-Categories: {categories_str}
+    # Improved Prompt for better consistency on short titles
+    prompt = f"""You are an expert technical recruiter. Generate {num_questions} high-quality interview questions for the role: {job_title}.
+    
+    {f'Context / Job Description: {job_description[:500]}' if job_description else 'Focus on core industry standards and best practices for this role.'}
+    Target Categories: {categories_str}
+    
+    CRITICAL: You MUST return a JSON object with a "questions" key containing an array of objects.
+    Each object must have: text, category, difficulty (easy|medium|hard), expected_keywords (array), and ideal_answer.
+    Even if the job title is short, provide comprehensive professional questions.
 
-Return JSON:
-{{"questions": [{{"text": "...", "category": "technical|behavioral|general", "difficulty": "easy|medium|hard", "expected_keywords": ["..."], "ideal_answer": "..."}}]}}"""
+    Example format:
+    {{"questions": [{{"text": "Sample Question?", "category": "technical", "difficulty": "medium", "expected_keywords": ["keyword"], "ideal_answer": "Answer text"}}]}}"""
     try:
         logger.info(f'[GPT] Question bank generation starting: job_title={job_title}, num_questions={num_questions}')
         # CRITICAL FIX: Reduce max_tokens for Vercel serverless timeout (10s limit)
@@ -863,7 +868,23 @@ Return JSON:
         logger.info(f'[GPT] Raw AI response received (length: {len(result_text)})')
         stripped = _strip_json(result_text)
         data = json.loads(stripped)
-        questions = data.get('questions', []) if isinstance(data, dict) else data
+        
+        # Handle different potential JSON structures
+        questions = []
+        if isinstance(data, dict):
+            questions = data.get('questions') or data.get('suggestions') or data.get('data') or []
+        elif isinstance(data, list):
+            questions = data
+            
+        # Hardcoded fallback if AI returns nothing or invalid data
+        if not questions or len(questions) == 0:
+            logger.warning(f'[GPT] AI returned 0 questions for "{job_title}". Using emergency fallback.')
+            questions = [
+                {"text": f"Can you describe your experience with {job_title}?", "category": "technical", "difficulty": "medium", "expected_keywords": [job_title.lower()], "ideal_answer": "Candidate should explain their hands-on experience and projects."},
+                {"text": "What was the most challenging project you worked on recently?", "category": "behavioral", "difficulty": "hard", "expected_keywords": ["problem-solving", "architecture"], "ideal_answer": "Focus on how they overcame technical hurdles."},
+                {"text": "How do you stay updated with the latest trends in your field?", "category": "general", "difficulty": "easy", "expected_keywords": ["documentation", "community"], "ideal_answer": "Mentioning blogs, courses, or open-source contribution."}
+            ]
+            
         result = questions[:num_questions] if isinstance(questions, list) else []
         logger.info(f'[GPT] Question bank generation SUCCESS: {len(result)} questions generated')
         return result
@@ -872,10 +893,8 @@ Return JSON:
         raise Exception(f'AI returned invalid JSON: {str(e)}')
     except Exception as e:
         logger.error(f'[GPT] Question bank generation failed: {type(e).__name__}: {e}')
-        # Fallback to general questions if AI fails completely but we need to return SOMETHING
-        if "rate limit" in str(e).lower() or "quota" in str(e).lower():
-            raise
-        return []
+        # Bubble up the exception so handle_ai_error can inform the user
+        raise
 
 
 def suggest_next_question(
