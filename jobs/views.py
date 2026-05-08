@@ -512,7 +512,9 @@ class PredictApplicationStatusView(APIView):
         except Exception as e:
             logger.warning(f'[Predict] Resume enrichment failed: {e}')
 
-        try:
+            # Flag data source for AI transparency
+            data_source = "Resume + Profile" if (active_resume and active_resume.parsed_data) else "Profile Data Only"
+            
             result = predict_application_status(
                 resume_data=merged_data,
                 job_title=getattr(job, 'title', 'Unknown Role'),
@@ -522,8 +524,9 @@ class PredictApplicationStatusView(APIView):
             )
             result['job_title'] = getattr(job, 'title', '')
             result['job_id'] = str(job.id)
-            # Flag whether candidate has a resume for better UX messaging
-            result['has_resume'] = bool(merged_data.get('skills') or merged_data.get('experience'))
+            result['data_source'] = data_source
+            # Flag whether candidate has any usable data
+            result['has_usable_data'] = bool(merged_data.get('skills') or merged_data.get('experience'))
             return Response(result)
         except Exception as e:
             logger.error(f'[PredictApplicationStatus] Failed: {e}')

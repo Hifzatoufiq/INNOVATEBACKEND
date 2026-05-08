@@ -2321,27 +2321,35 @@ def generate_mock_interview_report(role: str, level: str, history: list, user_id
             grade, readiness = 'Needs Improvement', 'Needs More Practice'
         else:
             grade, readiness = 'Poor', 'Not Ready'
+            
+        # Dynamically generate a more realistic summary if AI fails
+        if overall >= 75:
+            summary = f"Strong performance in your {level} {role} interview. You demonstrated clear knowledge and confident delivery. Focus on fine-tuning the STAR structure for technical answers."
+        elif overall >= 50:
+            summary = f"You completed the {level} {role} mock interview. While you covered the key areas, your answers could be significantly strengthened by adding more data-driven results and specific examples."
+        else:
+            summary = f"The {level} {role} interview highlights significant gaps in technical depth or behavioral structuring. We recommend reviewing the STAR method and practicing more specific case studies."
+
         return {
             'overall_score': overall,
             'performance_grade': grade,
-            'interview_summary': f'You completed a {level}-level {role} mock interview scoring {overall}/100. ' + (
-                'Strong performance overall — keep refining your answers.' if overall >= 70
-                else 'Your answers need more specific examples and structured responses (STAR method).'
-            ),
-            'top_strengths': ['Completed all questions', 'Demonstrated role awareness'] if overall >= 50 else ['Attempted all questions'],
+            'interview_summary': summary,
+            'top_strengths': [f'Demonstrated {role} awareness', 'Clear communication' if overall > 60 else 'Attempted all questions'],
             'critical_improvements': [
-                'Use specific examples with measurable outcomes in every answer',
-                'Structure answers using STAR method (Situation, Task, Action, Result)',
-                'Increase answer depth — aim for 100-150 words per answer'
+                'Use specific examples with measurable outcomes (e.g. "Increased efficiency by 20%")',
+                'Structure behavioral answers using the STAR method (Situation, Task, Action, Result)',
+                'Increase depth of answers — target 100+ words for complex questions'
             ],
-            'recommended_resources': ['Practice STAR method with 10 behavioral questions daily', 'Record yourself and review for filler words and clarity'],
+            'recommended_resources': [
+                'Review "Cracking the Coding Interview" for behavioral patterns',
+                'Practice STAR method storytelling for 30 minutes daily'
+            ],
             'readiness_for_real_interview': readiness,
             'next_steps': [
-                'Practice 2 mock interviews per week',
-                'Prepare 5 specific STAR stories from your experience',
-                'Research the target company and role deeply'
+                'Identify 3 key projects to use as STAR stories',
+                'Take another mock interview at a lower difficulty to build confidence'
             ],
-            'motivational_note': 'Every practice session builds real skill. Review your answers, focus on the improvements, and try again!'
+            'motivational_note': 'Every mock session is a step toward the real offer. Analyze these gaps, adjust your strategy, and try again!'
         }
 
 
@@ -2353,54 +2361,12 @@ def suggest_salary_negotiation(job_title: str, skills: list, experience_years: i
 
     # Pre-detect currency from location for fallback use
     _loc_lower = location_clean.lower()
-    if any(k in _loc_lower for k in ['pakistan', 'pk']):
-        _fallback_currency = 'PKR'
-        _fallback_ranges = {'junior': (60000, 120000, 200000), 'mid': (150000, 280000, 450000), 'senior': (350000, 600000, 1000000)}
-        _monthly_note = 'Monthly salaries in Pakistan range based on city (Karachi/Lahore higher).'
-    elif any(k in _loc_lower for k in ['india', 'in']):
-        _fallback_currency = 'INR'
-        _fallback_ranges = {'junior': (300000, 600000, 1000000), 'mid': (800000, 1500000, 2500000), 'senior': (2000000, 4000000, 8000000)}
-        _monthly_note = 'Indian tech salaries vary widely by city — Bangalore/Mumbai/Hyderabad pay 20-40% more.'
-    elif any(k in _loc_lower for k in ['united kingdom', 'uk', 'england', 'britain']):
-        _fallback_currency = 'GBP'
-        _fallback_ranges = {'junior': (22000, 32000, 42000), 'mid': (40000, 55000, 70000), 'senior': (65000, 85000, 120000)}
-        _monthly_note = 'London salaries are 20-30% higher than the UK national average.'
-    elif any(k in _loc_lower for k in ['canada']):
-        _fallback_currency = 'CAD'
-        _fallback_ranges = {'junior': (50000, 65000, 80000), 'mid': (75000, 95000, 115000), 'senior': (110000, 140000, 180000)}
-        _monthly_note = 'Toronto and Vancouver command the highest salaries in Canada.'
-    elif any(k in _loc_lower for k in ['australia']):
-        _fallback_currency = 'AUD'
-        _fallback_ranges = {'junior': (55000, 70000, 85000), 'mid': (85000, 105000, 130000), 'senior': (120000, 150000, 200000)}
-        _monthly_note = 'Sydney and Melbourne salaries are typically 10-15% above national average.'
-    elif any(k in _loc_lower for k in ['germany', 'deutschland']):
-        _fallback_currency = 'EUR'
-        _fallback_ranges = {'junior': (35000, 45000, 55000), 'mid': (50000, 65000, 80000), 'senior': (75000, 95000, 130000)}
-        _monthly_note = 'Berlin and Munich lead German tech salaries, often with strong benefits packages.'
-    elif any(k in _loc_lower for k in ['uae', 'dubai', 'abu dhabi', 'emirates']):
-        _fallback_currency = 'AED'
-        _fallback_ranges = {'junior': (60000, 90000, 130000), 'mid': (100000, 160000, 220000), 'senior': (180000, 280000, 400000)}
-        _monthly_note = 'UAE tech salaries are tax-free. Dubai pays highest for tech roles.'
-    elif any(k in _loc_lower for k in ['saudi', 'riyadh', 'ksa']):
-        _fallback_currency = 'SAR'
-        _fallback_ranges = {'junior': (60000, 90000, 130000), 'mid': (100000, 160000, 240000), 'senior': (200000, 320000, 480000)}
-        _monthly_note = 'Saudi Arabia salaries are tax-free with housing and transport allowances common.'
-    elif any(k in _loc_lower for k in ['bangladesh', 'bd', 'dhaka']):
-        _fallback_currency = 'BDT'
-        _fallback_ranges = {'junior': (300000, 500000, 800000), 'mid': (600000, 1000000, 1800000), 'senior': (1500000, 2500000, 4000000)}
-        _monthly_note = 'Dhaka tech market is growing rapidly with increasing international remote opportunities.'
-    elif any(k in _loc_lower for k in ['europe', 'eu', 'france', 'netherlands', 'spain', 'italy']):
-        _fallback_currency = 'EUR'
-        _fallback_ranges = {'junior': (28000, 38000, 50000), 'mid': (45000, 60000, 78000), 'senior': (70000, 90000, 120000)}
-        _monthly_note = 'European salaries vary by country — Netherlands and Switzerland pay significantly more.'
-    else:
-        _fallback_currency = 'USD'
-        _fallback_ranges = {'junior': (55000, 75000, 95000), 'mid': (80000, 105000, 135000), 'senior': (120000, 155000, 200000)}
-        _monthly_note = 'US tech salaries vary by state — NYC, SF, and Seattle pay 30-50% above national average.'
-
-    # Determine experience tier for fallback
+    # Determine experience tier for generic fallback (if AI truly fails)
     _tier = 'junior' if experience_years <= 2 else 'senior' if experience_years >= 6 else 'mid'
-    _fb_min, _fb_mid, _fb_max = _fallback_ranges[_tier]
+    _fb_val = 100000 if _tier == 'mid' else 50000 if _tier == 'junior' else 200000
+    _fb_min, _fb_mid, _fb_max = int(_fb_val * 0.7), _fb_val, int(_fb_val * 1.5)
+    _fb_ask = int(_fb_mid * 1.1)
+    _monthly_note = f'Market analysis for {job_title} in {location_clean}.'
     _fb_ask = int(_fb_mid * 1.08)
 
     # Format current offer text in local currency
@@ -2409,7 +2375,7 @@ def suggest_salary_negotiation(job_title: str, skills: list, experience_years: i
     offer_text = f'{_curr_symbol}{int(current_offer):,}' if current_offer else 'No offer yet'
 
     prompt = (
-        'You are a senior compensation consultant with REAL, UP-TO-DATE market data for ' + location_clean + '.\n\n'
+        'You are an expert global compensation analyst with deep knowledge of the tech industry across ALL international markets.\n\n'
         'CANDIDATE PROFILE:\n'
         '- Job Title: ' + job_title + '\n'
         '- Skills: ' + skills_text + '\n'
@@ -2418,12 +2384,12 @@ def suggest_salary_negotiation(job_title: str, skills: list, experience_years: i
         '- Company Size: ' + company_size + '\n'
         '- Current Offer: ' + offer_text + '\n\n'
         'CRITICAL INSTRUCTIONS:\n'
-        '1. Detect the correct local currency for "' + location_clean + '" (PKR for Pakistan, INR for India, USD for USA, GBP for UK, EUR for Europe, AED for UAE, SAR for Saudi Arabia, CAD for Canada, AUD for Australia, BDT for Bangladesh, etc.)\n'
-        '2. Return salary numbers in that LOCAL CURRENCY — NOT USD unless the location is USA/Americas.\n'
-        '3. Use REAL current market data for ' + location_clean + ' in ' + str(__import__("datetime").date.today().year) + '.\n'
-        '4. For Pakistan: typical React developer salaries are Rs. 80,000-350,000/month. For India: ₹6L-30L/year. For UK: £35,000-90,000/year. Match these realistic ranges.\n'
-        '5. The market_insight MUST mention the specific city/region within ' + location_clean + ' if relevant (e.g., Karachi vs Lahore, Bangalore vs Delhi).\n'
-        '6. negotiation_script and counter_offer_responses must use the LOCAL currency symbol.\n\n'
+        '1. Detect the EXACT local currency for "' + location_clean + '" (e.g., PKR for Pakistan, INR for India, SAR for Saudi, BDT for Bangladesh, etc.)\n'
+        '2. Return salary numbers in that LOCAL CURRENCY. Do NOT use USD unless the location is USA or a dollar-pegged market.\n'
+        '3. Provide a TOTALLY AI-DRIVEN ANALYSIS based on real-time market trends for ' + location_clean + ' in ' + str(__import__("datetime").date.today().year) + '.\n'
+        '4. Do not rely on hardcoded ranges; analyze the specific "Job Title" and "Skills" against the cost of living and tech demand in that specific CITY/COUNTRY.\n'
+        '5. The market_insight MUST be specific to the local market conditions of ' + location_clean + ' (e.g. mention if it is a tech hub, remote-friendly, or has specific high-paying sectors).\n'
+        '6. negotiation_script and counter_offer_responses must use the LOCAL currency symbol and reflect local cultural negotiation norms.\n\n'
         'Return ONLY valid JSON (no markdown):\n'
         '{\n'
         '  "market_min": <annual salary in LOCAL currency as integer>,\n'

@@ -144,9 +144,9 @@ if not OPENAI_API_KEY:
 
 # Daily AI usage limits for $10 budget (30-day usage)
 # ~2,200 total calls possible with GPT-4o-mini
-# Set to ~73 calls/day for 30-day usage
-AI_DAILY_SOFT_LIMIT = config('AI_DAILY_SOFT_LIMIT', default=73, cast=int)
-AI_WARNING_THRESHOLD = config('AI_WARNING_THRESHOLD', default=50, cast=int)  # 70% of daily limit
+# Increased to 500 calls/day to ensure AI analysis is always active for high-volume users
+AI_DAILY_SOFT_LIMIT = config('AI_DAILY_SOFT_LIMIT', default=500, cast=int)
+AI_WARNING_THRESHOLD = config('AI_WARNING_THRESHOLD', default=400, cast=int)
 
 
 # ─── Encryption ───────────────────────────────────────────────────────────────
