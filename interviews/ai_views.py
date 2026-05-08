@@ -43,20 +43,44 @@ _ADMIN_ALERT_TYPES = {'AI_KEY_INVALID', 'AI_BILLING_ISSUE'}
 
 def handle_ai_error(e: Exception):
     """Return a proper Response for AI errors, and notify admins for critical ones."""
-    error_type = str(e)
-    if error_type in AI_ERROR_MESSAGES:
-        msg, status = AI_ERROR_MESSAGES[error_type]
-        # Notify admins for key/billing issues (quota exhausted is already handled in _call)
-        if error_type in _ADMIN_ALERT_TYPES:
+    from django.conf import settings
+    error_str = str(e)
+    
+    # Handle specific known error types from our system
+    if error_str in AI_ERROR_MESSAGES:
+        msg, status = AI_ERROR_MESSAGES[error_str]
+        if error_str in _ADMIN_ALERT_TYPES:
             try:
                 from core.ai_notifications import notify_admins_async
-                notify_admins_async(error_type)
+                notify_admins_async(error_str)
             except Exception as notify_err:
                 logger.warning(f'[AI] Could not send admin notification: {notify_err}')
-        return Response({'error': msg, 'error_type': error_type}, status=status)
-    if 'rate limit' in error_type.lower():
-        return Response({'error': error_type, 'error_type': 'RATE_LIMITED'}, status=429)
-    return Response({'error': 'AI service temporarily unavailable. Please try again.', 'error_type': 'AI_ERROR'}, status=503)
+        return Response({'error': msg, 'error_type': error_str}, status=status)
+
+    # Handle OpenAI specific exceptions if they bubble up
+    if '401' in error_str or 'invalid_api_key' in error_str:
+        return Response({
+            'error': 'Invalid OpenAI API Key. Please check your .env configuration.',
+            'error_type': 'AI_KEY_INVALID'
+        }, status=503)
+
+    if 'rate limit' in error_str.lower() or '429' in error_str:
+        return Response({
+            'error': 'AI rate limit reached. Please try again in a few moments.',
+            'error_type': 'RATE_LIMITED'
+        }, status=429)
+
+    # In DEBUG mode, show the actual error to help the developer (USER)
+    if settings.DEBUG:
+        return Response({
+            'error': f'AI Error: {error_str}',
+            'error_type': 'AI_DEBUG_ERROR'
+        }, status=500)
+
+    return Response({
+        'error': 'AI service temporarily unavailable. Please try again.',
+        'error_type': 'AI_ERROR'
+    }, status=503)
 
 
 class GenerateQuestionsView(APIView):
