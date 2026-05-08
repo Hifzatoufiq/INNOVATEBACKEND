@@ -72,14 +72,16 @@ class GenerateQuestionsView(APIView):
         num = min(int(request.data.get('num_questions', 8)), 20)
         candidate_id = request.data.get('candidate_id')
 
+        logger.info(f'[AI-Generate] Recruiter {request.user.id} requesting {num} questions for: {job_title}')
+
         resume_data = None
         if candidate_id:
             res = Resume.objects(candidate_id=candidate_id, is_active=True).first()
             if res:
                 resume_data = res.parsed_data
+                logger.info(f'[AI-Generate] Tailoring with resume data for candidate: {candidate_id}')
 
         try:
-            # CRITICAL FIX: Pass user_id for rate limiting
             questions = generate_interview_questions(
                 job_title=job_title, 
                 job_description=job_desc, 
@@ -87,8 +89,10 @@ class GenerateQuestionsView(APIView):
                 resume_data=resume_data,
                 user_id=str(request.user.id)
             )
+            logger.info(f'[AI-Generate] Success: Generated {len(questions)} questions.')
             return Response({'questions': questions, 'count': len(questions)})
         except Exception as e:
+            logger.error(f'[AI-Generate] Failed: {str(e)}')
             return handle_ai_error(e)
 
 

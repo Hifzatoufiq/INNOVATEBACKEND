@@ -337,13 +337,19 @@ Ensure category is one of: technical, behavioral, general.
 Ensure difficulty is one of: easy, medium, hard.
 """
     try:
+        logger.info(f'[GPT] Calling OpenAI for {num_questions} questions. Model: {MODEL_NAME}')
         result_text = _call(prompt, user_id=user_id, response_format="json")
+        logger.debug(f'[GPT] Raw response: {result_text[:500]}...')
         stripped = _strip_json(result_text)
         data = json.loads(stripped)
         questions = data.get('questions', []) if isinstance(data, dict) else data
+        
+        if not questions:
+            logger.warning(f'[GPT] No questions found in AI response: {result_text}')
+            
         return questions[:num_questions] if isinstance(questions, list) else []
     except Exception as e:
-        logger.error(f'[GPT] Question generation failed: {e}')
+        logger.error(f'[GPT] Question generation failed: {str(e)}')
         return []
 
 
@@ -1384,6 +1390,7 @@ def transcribe_audio_whisper(audio_bytes: bytes, filename: str = 'audio.webm', u
     _increment_and_check_quota()
 
     try:
+        client = _get_client()
         audio_file = io.BytesIO(audio_bytes)
         audio_file.name = filename
         transcript = client.audio.transcriptions.create(
@@ -2361,13 +2368,33 @@ def suggest_salary_negotiation(job_title: str, skills: list, experience_years: i
 
     # Pre-detect currency from location for fallback use
     _loc_lower = location_clean.lower()
+    if any(k in _loc_lower for k in ['pakistan', 'pk']):
+        _fallback_currency = 'PKR'
+    elif any(k in _loc_lower for k in ['india', 'in']):
+        _fallback_currency = 'INR'
+    elif any(k in _loc_lower for k in ['united kingdom', 'uk', 'england', 'britain']):
+        _fallback_currency = 'GBP'
+    elif any(k in _loc_lower for k in ['canada']):
+        _fallback_currency = 'CAD'
+    elif any(k in _loc_lower for k in ['australia']):
+        _fallback_currency = 'AUD'
+    elif any(k in _loc_lower for k in ['germany', 'deutschland', 'europe', 'eu', 'france', 'netherlands', 'spain', 'italy']):
+        _fallback_currency = 'EUR'
+    elif any(k in _loc_lower for k in ['uae', 'dubai', 'abu dhabi', 'emirates']):
+        _fallback_currency = 'AED'
+    elif any(k in _loc_lower for k in ['saudi', 'riyadh', 'ksa']):
+        _fallback_currency = 'SAR'
+    elif any(k in _loc_lower for k in ['bangladesh', 'bd', 'dhaka']):
+        _fallback_currency = 'BDT'
+    else:
+        _fallback_currency = 'USD'
+
     # Determine experience tier for generic fallback (if AI truly fails)
     _tier = 'junior' if experience_years <= 2 else 'senior' if experience_years >= 6 else 'mid'
     _fb_val = 100000 if _tier == 'mid' else 50000 if _tier == 'junior' else 200000
     _fb_min, _fb_mid, _fb_max = int(_fb_val * 0.7), _fb_val, int(_fb_val * 1.5)
     _fb_ask = int(_fb_mid * 1.1)
     _monthly_note = f'Market analysis for {job_title} in {location_clean}.'
-    _fb_ask = int(_fb_mid * 1.08)
 
     # Format current offer text in local currency
     _curr_symbol = {'USD': '$', 'PKR': 'Rs.', 'INR': '₹', 'GBP': '£', 'EUR': '€',
