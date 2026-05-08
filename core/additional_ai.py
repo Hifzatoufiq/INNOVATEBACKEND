@@ -8,12 +8,19 @@ from openai import OpenAI
 from django.conf import settings
 from core.rate_limiter import ai_rate_limiter
 
-logger = logging.getLogger('innovaite')
-client = OpenAI(api_key=settings.OPENAI_API_KEY)
 MODEL_NAME = "gpt-4o-mini"
+_client = None
+
+def _get_client():
+    global _client
+    if _client is None:
+        from openai import OpenAI
+        _client = OpenAI(api_key=settings.OPENAI_API_KEY)
+    return _client
 
 def _call_ai(prompt: str, user_id: str = None) -> str:
     """Make OpenAI API call with rate limiting."""
+    client = _get_client()
     if user_id:
         allowed, remaining, reset_time = ai_rate_limiter.check_limit(user_id, limit=20, window_minutes=60)
         if not allowed:
