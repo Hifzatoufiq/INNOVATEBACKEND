@@ -320,45 +320,35 @@ class ResumeUploadView(APIView):
 
         # Parse resume synchronously (Required for Vercel Serverless environment)
         try:
-            logger.info(f'[Resume] Starting synchronous parse for {resume.id} on Vercel/Railway')
+            logger.info(f'[Resume] Starting robust synchronous parse for {resume.id}')
             parsed = parse_resume(file_path, ext)
             
-            # Enhanced logging with more detail
-            logger.info(f'[Resume] Parsed data: name={parsed.get("name")}, skills_count={len(parsed.get("skills", []))}, experience_count={len(parsed.get("experience", []))}, parsed_by={parsed.get("parsed_by")}')
-            
+            # Save raw_text in parsed_data if missing
+            if not parsed.get('raw_text'):
+                parsed['raw_text'] = extract_text_from_file(file_path, ext)[:3000]
+
             resume.parsed_data = parsed
             
-            # Success criteria — lenient, any meaningful field counts
+            # Leniency: If we have ANY meaningful data (Name, Skills, or raw text length > 50), mark as success
             has_name = bool(parsed.get('name') and len(str(parsed.get('name')).strip()) > 2)
             has_skills = bool(parsed.get('skills') and len(parsed.get('skills', [])) > 0)
-            has_email = bool(parsed.get('email'))
-            has_experience = bool(parsed.get('experience') and len(parsed.get('experience', [])) > 0)
-            has_education = bool(parsed.get('education') and len(parsed.get('education', [])) > 0)
-            has_summary = bool(parsed.get('summary') and len(str(parsed.get('summary')).strip()) > 10)
-            
-            success_count = sum([has_name, has_skills, has_email, has_experience, has_education, has_summary])
-            
-            if success_count >= 1:
-                resume.parse_status = 'completed'  # Frontend expects 'completed'
-                logger.info(f'[Resume] Parse SUCCESS - {success_count}/6 fields found')
+            has_text = len(parsed.get('raw_text', '')) > 50
+
+            if has_name or has_skills or has_text:
+                resume.parse_status = 'completed'
+                logger.info(f'[Resume] Parse SUCCESS - Found Data: Name={has_name}, Skills={has_skills}, Text={has_text}')
             else:
                 resume.parse_status = 'failed'
-                # Save raw_text so frontend can still show something
-                resume.parsed_data = {'error': 'Could not extract structured data', 'raw_text': parsed.get('raw_text', '')}
-                logger.warning(f'[Resume] Parse FAILED - insufficient fields found.')
+                resume.parsed_data['error'] = 'Insufficient data extracted'
+                logger.warning(f'[Resume] Parse FAILED - No meaningful text or fields found.')
             
             resume.parsed_by_ai = parsed.get('parsed_by') == 'openai-gpt'
             resume.save()
             
         except Exception as e:
-            logger.error(f'[Resume] Sync parse failed for {resume.id}: {e}', exc_info=True)
+            logger.error(f'[Resume] Sync parse failed for {resume.id}: {e}')
             resume.parse_status = 'failed'
-            # Try to at least save raw text for debugging
-            try:
-                raw = extract_text_from_file(file_path, ext)
-                resume.parsed_data = {'error': str(e), 'raw_text': raw[:3000]}
-            except Exception:
-                resume.parsed_data = {'error': str(e)}
+            resume.parsed_data = {'error': str(e)}
             resume.save()
 
         return Response(resume.to_dict(), status=201)

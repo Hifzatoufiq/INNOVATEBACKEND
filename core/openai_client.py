@@ -33,8 +33,8 @@ MODEL_NAME = "gpt-4o-mini"
 # ── Daily AI Usage Tracker (in-memory, resets at midnight) ──────────────────
 # For $10 OpenAI credit: ~2,200 total calls possible
 # Daily limits set for 30-day usage
-_AI_WARNING_THRESHOLD = getattr(settings, 'AI_WARNING_THRESHOLD', 50)  # 70% of daily limit
-_AI_DAILY_SOFT_LIMIT  = getattr(settings, 'AI_DAILY_SOFT_LIMIT', 73)   # ~73 calls/day for $10/month
+_AI_WARNING_THRESHOLD = getattr(settings, 'AI_WARNING_THRESHOLD', 150)  # 75% of daily limit
+_AI_DAILY_SOFT_LIMIT  = getattr(settings, 'AI_DAILY_SOFT_LIMIT', 200)   # Increased for enterprise volume
 
 _daily_stats = {
     'date': None,
