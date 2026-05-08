@@ -410,7 +410,7 @@ class JobFitmentAnalysisView(APIView):
             return Response({'error': 'Both resume_data and job_description are required.'}, status=400)
 
         try:
-            from core.gemini import analyze_job_fitment
+            from core.openai_client import analyze_job_fitment
             result = analyze_job_fitment(resume_data, job_description)
             
             # Normalize response format
@@ -497,6 +497,7 @@ class PredictApplicationStatusView(APIView):
         }
 
         # Enrich with Resume Data if it's healthy
+        active_resume = None
         try:
             resumes = Resume.objects.filter(candidate_id=str(user.id))
             active_resume = next((r for r in resumes if getattr(r, 'is_active', False)), None) or (resumes[0] if resumes else None)
@@ -512,9 +513,10 @@ class PredictApplicationStatusView(APIView):
         except Exception as e:
             logger.warning(f'[Predict] Resume enrichment failed: {e}')
 
-            # Flag data source for AI transparency
-            data_source = "Resume + Profile" if (active_resume and active_resume.parsed_data) else "Profile Data Only"
-            
+        # Flag data source for AI transparency
+        data_source = "Resume + Profile" if (active_resume and active_resume.parsed_data) else "Profile Data Only"
+        
+        try:
             result = predict_application_status(
                 resume_data=merged_data,
                 job_title=getattr(job, 'title', 'Unknown Role'),

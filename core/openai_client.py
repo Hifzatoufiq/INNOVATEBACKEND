@@ -20,8 +20,9 @@ def _get_client():
     global _client
     if _client is None:
         api_key = settings.OPENAI_API_KEY
-        if not api_key:
-            logger.error('[AI] OPENAI_API_KEY not set in environment variables')
+        # CRITICAL FIX: Explicitly check for placeholder strings
+        if not api_key or 'your-openai-api-key' in api_key.lower():
+            logger.error('[AI] OPENAI_API_KEY not set or is a placeholder in environment variables')
             raise Exception('AI_KEY_INVALID')
         _client = OpenAI(api_key=api_key)
         logger.info('[AI] OpenAI client initialized successfully')
@@ -867,11 +868,14 @@ Return JSON:
         logger.info(f'[GPT] Question bank generation SUCCESS: {len(result)} questions generated')
         return result
     except json.JSONDecodeError as e:
-        logger.error(f'[GPT] Question bank JSON parse failed: {e} | Raw text: {result_text[:300] if "result_text" in dir() else "N/A"}')
+        logger.error(f'[GPT] Question bank JSON parse failed: {e} | Raw text: {result_text[:1000] if "result_text" in locals() else "N/A"}')
         raise Exception(f'AI returned invalid JSON: {str(e)}')
     except Exception as e:
         logger.error(f'[GPT] Question bank generation failed: {type(e).__name__}: {e}')
-        raise
+        # Fallback to general questions if AI fails completely but we need to return SOMETHING
+        if "rate limit" in str(e).lower() or "quota" in str(e).lower():
+            raise
+        return []
 
 
 def suggest_next_question(

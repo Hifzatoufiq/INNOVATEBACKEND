@@ -169,7 +169,7 @@ class SignalingConsumer(AsyncWebsocketConsumer):
         msg_type = data.get('type')
 
         # ── Standard WebRTC signaling + real-time events ──
-        if msg_type in ['offer', 'answer', 'ice-candidate', 'chat', 'ready', 'media-status-update', 'violation_alert']:
+        if msg_type in ['offer', 'answer', 'ice-candidate', 'chat', 'ready', 'media-status-update', 'violation_alert', 'voice_tone_update', 'behavior_update', 'quality_update', 'tab_switch_alert', 'transcript_update']:
             # Save chat messages to DB for persistence
             if msg_type == 'chat':
                 await save_chat_message(self.room_id, {

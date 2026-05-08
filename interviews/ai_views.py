@@ -3,11 +3,14 @@ interviews/ai_views.py — Candidate AI Assistance + Advanced AI Features
 """
 import base64
 import logging
+# pyrefly: ignore [missing-import]
 import mongoengine
 from datetime import datetime
+# pyrefly: ignore [missing-import]
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.conf import settings
 from interviews.models import Interview, Question, QuestionBank
 from core.openai_client import (
     generate_candidate_hints, generate_interview_questions,
@@ -43,7 +46,6 @@ _ADMIN_ALERT_TYPES = {'AI_KEY_INVALID', 'AI_BILLING_ISSUE'}
 
 def handle_ai_error(e: Exception):
     """Return a proper Response for AI errors, and notify admins for critical ones."""
-    from django.conf import settings
     error_str = str(e)
     
     # Handle specific known error types from our system
@@ -449,7 +451,6 @@ class QuestionBankAIGenerateView(APIView):
             return Response({'error': 'job_title is required.'}, status=400)
 
         # CRITICAL DEBUG: Log API key status
-        from django.conf import settings
         api_key = settings.OPENAI_API_KEY
         logger.info(f'[QuestionBank] API Key Status: {"SET" if api_key else "MISSING"} (length: {len(api_key) if api_key else 0})')
         
