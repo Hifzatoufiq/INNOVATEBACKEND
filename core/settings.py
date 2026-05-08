@@ -137,10 +137,12 @@ JWT_EXPIRY_HOURS = 24
 JWT_REFRESH_EXPIRY_DAYS = 7
 
 # ─── AI Configuration ─────────────────────────────────────────────────────────
-# OpenAI GPT (Primary AI Service - GPT-4o-mini)
+# Primary AI Service - OpenAI GPT-4o-mini
 OPENAI_API_KEY = config('OPENAI_API_KEY', default='')
-if not OPENAI_API_KEY:
-    warnings.warn('[InnovAIte] OPENAI_API_KEY not set. AI features disabled.')
+GEMINI_API_KEY = config('GEMINI_API_KEY', default='')
+
+if not OPENAI_API_KEY and not GEMINI_API_KEY:
+    warnings.warn('[InnovAIte] No AI API keys (OpenAI/Gemini) found. AI features will be disabled.')
 
 # Daily AI usage limits for $10 budget (30-day usage)
 # ~2,200 total calls possible with GPT-4o-mini

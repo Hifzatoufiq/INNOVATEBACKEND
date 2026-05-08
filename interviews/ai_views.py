@@ -74,6 +74,7 @@ def handle_ai_error(e: Exception):
     if settings.DEBUG:
         return Response({
             'error': f'AI Error: {error_str}',
+            'error_details': str(e),
             'error_type': 'AI_DEBUG_ERROR'
         }, status=500)
 
@@ -90,11 +91,18 @@ class GenerateQuestionsView(APIView):
     def post(self, request):
         if request.user.role not in ['recruiter', 'admin']:
             return Response({'error': 'Forbidden.'}, status=403)
-
         job_title = request.data.get('job_title', '').strip()
         job_desc = request.data.get('job_description', '').strip()
         num = min(int(request.data.get('num_questions', 8)), 20)
         candidate_id = request.data.get('candidate_id')
+
+        # CRITICAL CHECK: Verify API key before calling service
+        if not settings.OPENAI_API_KEY:
+            logger.error('[AI-Generate] OPENAI_API_KEY is not set in environment!')
+            return Response({
+                'error': 'AI service is not configured. Please add OPENAI_API_KEY to your .env file.',
+                'error_type': 'AI_KEY_INVALID'
+            }, status=503)
 
         logger.info(f'[AI-Generate] Recruiter {request.user.id} requesting {num} questions for: {job_title}')
 

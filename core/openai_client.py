@@ -336,21 +336,17 @@ Return ONLY a strictly valid JSON object with a "questions" key:
 Ensure category is one of: technical, behavioral, general.
 Ensure difficulty is one of: easy, medium, hard.
 """
-    try:
-        logger.info(f'[GPT] Calling OpenAI for {num_questions} questions. Model: {MODEL_NAME}')
-        result_text = _call(prompt, user_id=user_id, response_format="json")
-        logger.debug(f'[GPT] Raw response: {result_text[:500]}...')
-        stripped = _strip_json(result_text)
-        data = json.loads(stripped)
-        questions = data.get('questions', []) if isinstance(data, dict) else data
+    logger.info(f'[GPT] Calling OpenAI for {num_questions} questions. Model: {MODEL_NAME}')
+    result_text = _call(prompt, user_id=user_id, response_format="json")
+    logger.debug(f'[GPT] Raw response: {result_text[:500]}...')
+    stripped = _strip_json(result_text)
+    data = json.loads(stripped)
+    questions = data.get('questions', []) if isinstance(data, dict) else data
+    
+    if not questions:
+        logger.warning(f'[GPT] No questions found in AI response: {result_text}')
         
-        if not questions:
-            logger.warning(f'[GPT] No questions found in AI response: {result_text}')
-            
-        return questions[:num_questions] if isinstance(questions, list) else []
-    except Exception as e:
-        logger.error(f'[GPT] Question generation failed: {str(e)}')
-        return []
+    return questions[:num_questions] if isinstance(questions, list) else []
 
 
 def generate_candidate_hints(question: str, category: str = 'general', user_id: str = None) -> str:
