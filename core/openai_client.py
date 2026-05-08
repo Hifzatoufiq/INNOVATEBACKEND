@@ -2363,31 +2363,37 @@ def generate_mock_interview_report(role: str, level: str, history: list, user_id
 def suggest_salary_negotiation(job_title: str, skills: list, experience_years: int, location: str, current_offer: float = None, company_size: str = 'medium', user_id: str = None) -> dict:
     """Provide AI-powered salary negotiation strategy with real local market data."""
 
-    skills_text = ', '.join(skills[:12]) if skills else 'Not specified'
+    # 1. Initialize fallbacks with absolute defaults to prevent NameErrors
+    _fallback_currency = 'USD'
+    _curr_symbol = '$'
+    
     location_clean = (location or 'United States').strip()
+    skills_text = ', '.join(skills[:12]) if skills else 'Not specified'
 
-    # Pre-detect currency from location for fallback use
+    # 2. Robust currency detection
     _loc_lower = location_clean.lower()
-    if any(k in _loc_lower for k in ['pakistan', 'pk']):
-        _fallback_currency = 'PKR'
-    elif any(k in _loc_lower for k in ['india', 'in']):
-        _fallback_currency = 'INR'
-    elif any(k in _loc_lower for k in ['united kingdom', 'uk', 'england', 'britain']):
-        _fallback_currency = 'GBP'
-    elif any(k in _loc_lower for k in ['canada']):
-        _fallback_currency = 'CAD'
-    elif any(k in _loc_lower for k in ['australia']):
-        _fallback_currency = 'AUD'
-    elif any(k in _loc_lower for k in ['germany', 'deutschland', 'europe', 'eu', 'france', 'netherlands', 'spain', 'italy']):
-        _fallback_currency = 'EUR'
-    elif any(k in _loc_lower for k in ['uae', 'dubai', 'abu dhabi', 'emirates']):
-        _fallback_currency = 'AED'
-    elif any(k in _loc_lower for k in ['saudi', 'riyadh', 'ksa']):
-        _fallback_currency = 'SAR'
-    elif any(k in _loc_lower for k in ['bangladesh', 'bd', 'dhaka']):
-        _fallback_currency = 'BDT'
-    else:
-        _fallback_currency = 'USD'
+    currency_map = {
+        'pakistan': 'PKR', 'pk': 'PKR',
+        'india': 'INR', 'in': 'INR',
+        'united kingdom': 'GBP', 'uk': 'GBP', 'england': 'GBP', 'britain': 'GBP',
+        'canada': 'CAD',
+        'australia': 'AUD',
+        'germany': 'EUR', 'france': 'EUR', 'netherlands': 'EUR', 'spain': 'EUR', 'italy': 'EUR', 'europe': 'EUR', 'eu': 'EUR',
+        'uae': 'AED', 'dubai': 'AED', 'abu dhabi': 'AED',
+        'saudi': 'SAR', 'riyadh': 'SAR', 'ksa': 'SAR',
+        'bangladesh': 'BDT', 'bd': 'BDT',
+    }
+    
+    for key, val in currency_map.items():
+        if key in _loc_lower:
+            _fallback_currency = val
+            break
+            
+    _symbol_map = {
+        'USD': '$', 'PKR': 'Rs.', 'INR': '₹', 'GBP': '£', 'EUR': '€',
+        'AED': 'AED', 'SAR': 'SAR', 'CAD': 'CA$', 'AUD': 'A$', 'BDT': '৳'
+    }
+    _curr_symbol = _symbol_map.get(_fallback_currency, '$')
 
     # Determine experience tier for generic fallback (if AI truly fails)
     _tier = 'junior' if experience_years <= 2 else 'senior' if experience_years >= 6 else 'mid'
@@ -2396,9 +2402,6 @@ def suggest_salary_negotiation(job_title: str, skills: list, experience_years: i
     _fb_ask = int(_fb_mid * 1.1)
     _monthly_note = f'Market analysis for {job_title} in {location_clean}.'
 
-    # Format current offer text in local currency
-    _curr_symbol = {'USD': '$', 'PKR': 'Rs.', 'INR': '₹', 'GBP': '£', 'EUR': '€',
-                    'AED': 'AED', 'SAR': 'SAR', 'CAD': 'CA$', 'AUD': 'A$', 'BDT': '৳'}.get(_fallback_currency, '')
     offer_text = f'{_curr_symbol}{int(current_offer):,}' if current_offer else 'No offer yet'
 
     prompt = (
