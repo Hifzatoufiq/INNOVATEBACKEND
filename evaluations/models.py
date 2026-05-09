@@ -153,6 +153,23 @@ class Evaluation(me.Document):
         else:
             confidence_level = 'LOW'
 
+        # Calculate category scores for the frontend ScoreBreakdown
+        # Technical: semantic_accuracy, keyword_alignment, response_depth, resume_consistency
+        # Communication: communication_clarity, response_completeness
+        # Behavioral: confidence_indicators (and optionally factoring in confidence_score)
+        
+        results_map = {cr.criterion: cr.score for cr in (self.criterion_results or [])}
+        
+        def get_avg(keys):
+            scores = [results_map[k] * 10 for k in keys if k in results_map]
+            return sum(scores) / len(scores) if scores else 0
+
+        technical_score = get_avg(['semantic_accuracy', 'keyword_alignment', 'response_depth', 'resume_consistency'])
+        communication_score = get_avg(['communication_clarity', 'response_completeness'])
+        # Behavioral uses the specific indicators or the overall AI confidence score if available
+        behavioral_indicators = get_avg(['confidence_indicators'])
+        behavioral_score = (behavioral_indicators + (self.confidence_score or 0)) / 2 if behavioral_indicators > 0 else (self.confidence_score or 0)
+
         data = {
             'id': str(self.id),
             'interview_id': self.interview_id,
@@ -173,6 +190,9 @@ class Evaluation(me.Document):
                 for cr in self.criterion_results
             ],
             'overall_score': self.overall_score,
+            'technical_score': round(technical_score, 1),
+            'communication_score': round(communication_score, 1),
+            'behavioral_score': round(behavioral_score, 1),
             'recommendation': frontend_recommendation,
             'confidence': confidence_level,
             'summary': self.summary,
