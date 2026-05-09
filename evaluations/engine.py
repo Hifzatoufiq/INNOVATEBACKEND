@@ -460,15 +460,17 @@ def run_xai_evaluation(interview, resume_parsed_data=None, user_id: str = None):
     except (Exception, AttributeError):
         company_values = []
 
-    # Strengths & weaknesses — use human-readable labels from CRITERIA config
-    label_map = {c['criterion']: c['label'] for c in CRITERIA}
-
     # ─── Initialize Enterprise AI result placeholders ───
     behavioral = {"confidence_score": 50, "fluency_score": 50, "behavioral_summary": "N/A"}
     integrity = {"integrity_score": 100, "notes": "No issues detected."}
     job_fit = {"fitment_score": 50}
     culture_fit = {"culture_score": 50}
     resume_alignment_fallback = 50.0
+
+    # Log input for debugging
+    logger.info(f"[EVAL] Starting evaluation for interview {interview.id}. Questions: {len(questions)}, Responses: {len(responses)}")
+    if not responses:
+        logger.warning(f"[EVAL] No responses found for interview {interview.id}. Will use baseline scores.")
 
     all_criterion_results = []
     weighted_total = 0
@@ -485,7 +487,8 @@ def run_xai_evaluation(interview, resume_parsed_data=None, user_id: str = None):
         combined_explanation = []
 
         for idx, question in enumerate(questions):
-            resp = responses.get(str(idx), '')
+            # Try both string and integer keys
+            resp = responses.get(str(idx), '') or responses.get(idx, '')
             if not resp:
                 continue
 
@@ -494,11 +497,11 @@ def run_xai_evaluation(interview, resume_parsed_data=None, user_id: str = None):
             elif criterion == 'response_depth':
                 s, exp, rules, ev = score_response_depth(resp)
             elif criterion == 'keyword_alignment':
-                s, exp, rules, ev = score_keyword_alignment(resp, question.expected_keywords)
+                s, exp, rules, ev = score_keyword_alignment(resp, getattr(question, 'expected_keywords', []) or [])
             elif criterion == 'resume_consistency':
                 s, exp, rules, ev = score_resume_consistency(resp, resume_parsed_data)
             elif criterion == 'response_completeness':
-                s, exp, rules, ev = score_response_completeness(resp, question.text)
+                s, exp, rules, ev = score_response_completeness(resp, getattr(question, 'text', ''))
             elif criterion == 'confidence_indicators':
                 s, exp, rules, ev = score_confidence_indicators(resp)
             elif criterion == 'semantic_accuracy':
@@ -513,7 +516,7 @@ def run_xai_evaluation(interview, resume_parsed_data=None, user_id: str = None):
                     logger.info(f'[Engine] Q{idx} using pre-computed semantic score {s} (skipping AI call)')
                 elif AI_AVAILABLE and getattr(question, 'ideal_answer', ''):
                     # Fallback: compute now if pre-score is missing
-                    ai_res = analyze_response_semantics(question.text, question.ideal_answer, resp, user_id=user_id)
+                    ai_res = analyze_response_semantics(getattr(question, 'text', ''), getattr(question, 'ideal_answer', ''), resp, user_id=user_id)
                     s, exp, rules, ev = ai_res['score'], ai_res['explanation'], ['RULE_AI_SEMANTIC_ANALYSIS'], ai_res.get('missing_points', [])
                 else:
                     s, exp, rules, ev = 5.0, 'AI Semantic Analysis unavailable.', ['RULE_AI_SKIPPED'], []
@@ -528,6 +531,8 @@ def run_xai_evaluation(interview, resume_parsed_data=None, user_id: str = None):
         avg_score = sum(criterion_scores) / len(criterion_scores) if criterion_scores else 5.0
         weighted_total += avg_score * weight
         total_weight += weight
+        
+        logger.info(f"[EVAL] Criterion '{criterion}' avg score: {avg_score}")
 
         all_criterion_results.append({
             'criterion': criterion,
@@ -541,6 +546,13 @@ def run_xai_evaluation(interview, resume_parsed_data=None, user_id: str = None):
 
     # Overall weighted score (0–100)
     overall = round((weighted_total / total_weight) * 10, 1) if total_weight > 0 else 50.0
+    
+    # Safety: If score is 0 but responses exist, set a baseline
+    if overall <= 0 and responses:
+        logger.warning(f"[EVAL] Overall score is {overall} but responses exist. Setting baseline 10.0")
+        overall = 10.0
+
+    logger.info(f"[EVAL] Final Overall Score: {overall}")
 
     # Recommendation logic — use detailed version
     integrity_score_val = integrity.get('integrity_score', 100)
