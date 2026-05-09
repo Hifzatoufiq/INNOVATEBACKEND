@@ -189,7 +189,9 @@ class Evaluation(me.Document):
                 }
                 for cr in self.criterion_results
             ],
+            'criteria_scores': {cr.criterion: round(cr.score * 10, 1) for cr in self.criterion_results},
             'overall_score': self.overall_score,
+            'score': self.overall_score, # Alias for mobile
             'technical_score': round(technical_score, 1),
             'communication_score': round(communication_score, 1),
             'behavioral_score': round(behavioral_score, 1),
