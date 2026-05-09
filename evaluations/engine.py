@@ -460,6 +460,16 @@ def run_xai_evaluation(interview, resume_parsed_data=None, user_id: str = None):
     except (Exception, AttributeError):
         company_values = []
 
+    # Strengths & weaknesses — use human-readable labels from CRITERIA config
+    label_map = {c['criterion']: c['label'] for c in CRITERIA}
+
+    # ─── Initialize Enterprise AI result placeholders ───
+    behavioral = {"confidence_score": 50, "fluency_score": 50, "behavioral_summary": "N/A"}
+    integrity = {"integrity_score": 100, "notes": "No issues detected."}
+    job_fit = {"fitment_score": 50}
+    culture_fit = {"culture_score": 50}
+    resume_alignment_fallback = 50.0
+
     all_criterion_results = []
     weighted_total = 0
     total_weight = 0
@@ -557,21 +567,12 @@ def run_xai_evaluation(interview, resume_parsed_data=None, user_id: str = None):
     else:
         summary = _fallback_summary(overall)
 
-
     # Strengths & weaknesses — use human-readable labels from CRITERIA config
-    label_map = {c['criterion']: c['label'] for c in CRITERIA}
     sorted_results = sorted(all_criterion_results, key=lambda x: x['score'], reverse=True)
     strengths = [label_map.get(r['criterion'], r['criterion'].replace('_', ' ').title()) for r in sorted_results[:2]]
     weaknesses = [label_map.get(r['criterion'], r['criterion'].replace('_', ' ').title()) for r in sorted_results[-2:]]
 
-    # Behavioral & Integrity Analysis (Enterprise)
-    behavioral = {"confidence_score": 50, "fluency_score": 50, "behavioral_summary": "N/A"}
-    integrity = {"integrity_score": 100, "notes": "No issues detected."}
-    job_fit = {"fitment_score": 50}
-    culture_fit = {"culture_score": 50}
-
     # Fallback resume alignment (simple string match)
-    resume_alignment_fallback = overall
     if resume_parsed_data and resume_parsed_data.get('skills'):
         skills = resume_parsed_data['skills']
         all_resp_text = ' '.join(str(v) for v in responses.values()).lower()
